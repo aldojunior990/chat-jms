@@ -1,18 +1,19 @@
 package com.example.chat_jms.config;
 
+import jakarta.jms.*;
 import org.apache.activemq.ActiveMQConnectionFactory;
+import org.apache.activemq.command.ActiveMQTopic;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jms.annotation.EnableJms;
-import jakarta.jms.ConnectionFactory;
 
 @Configuration
 @EnableJms
-public class JMSConfig {
+public class ActiveMQConfig {
 
     @Value("${spring.activemq.broker-url}")
-    private String brokerUrl;
+    private String url;
 
     @Value("${spring.activemq.user}")
     private String user;
@@ -21,11 +22,18 @@ public class JMSConfig {
     private String password;
 
     @Bean
-    public ConnectionFactory connectionFactory() {
-        if (user.isEmpty()) {
-            return new ActiveMQConnectionFactory(brokerUrl);
+    public Connection connectionFactory() {
+        try {
+            ConnectionFactory connectionFactory = new ActiveMQConnectionFactory(user, password, url);
+            return connectionFactory.createConnection();
+        } catch (Exception err) {
+            err.printStackTrace();
+            return null;
         }
-        return new ActiveMQConnectionFactory(user, password, brokerUrl);
     }
 
+    @Bean
+    public Topic getTopic() {
+        return new ActiveMQTopic("global");
+    }
 }
