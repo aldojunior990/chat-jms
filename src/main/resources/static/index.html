@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Chat Application</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <script src="js/chat.js" defer></script>
+</head>
+<body>
+<h1>Chat Application</h1>
+<div>
+    <input type="text" id="username" placeholder="Seu nome" />
+    <input type="text" id="broadcastMessage" placeholder="Mensagem" />
+    <button onclick="sendBroadcastMessage()">Enviar Broadcast</button>
+</div>
+<ul id="broadcastMessageArea"></ul>
+
+<div>
+    <h2>Chat Privado</h2>
+    <input type="text" id="privateUser" placeholder="Usuário para chat privado" />
+    <input type="text" id="privateMessage" placeholder="Mensagem privada" />
+    <button onclick="sendPrivateMessage()">Enviar Mensagem Privada</button>
+</div>
+<ul id="privateMessageArea"></ul>
+</body>
+</html>
