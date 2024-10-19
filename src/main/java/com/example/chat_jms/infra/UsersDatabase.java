@@ -1,10 +1,12 @@
 package com.example.chat_jms.infra;
 
 import jakarta.jms.Queue;
+import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Repository;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 

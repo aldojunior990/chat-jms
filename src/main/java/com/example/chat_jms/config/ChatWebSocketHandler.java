@@ -34,7 +34,6 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
 
     private Session JMSSession;
 
-
     @Override
     public void afterConnectionEstablished(WebSocketSession WSSession) {
         try {
@@ -43,6 +42,8 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             if (username == null || username.trim().isEmpty()) {
                 throw new IllegalArgumentException("Username não pode ser vazio");
             }
+
+            connection.start();
 
             // Inicia a conexãp
             JMSSession = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
