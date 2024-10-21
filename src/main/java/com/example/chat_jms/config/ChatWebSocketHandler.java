@@ -20,19 +20,19 @@ import java.nio.charset.StandardCharsets;
 @Configuration
 public class ChatWebSocketHandler extends TextWebSocketHandler {
 
-    @Autowired
-    private UsersDatabase usersDatabase;
-
-    @Autowired
-    private Connection connection;
-
-    @Autowired
-    private MessageService messageService;
-
-    @Autowired
-    private Topic topic;
-
+    final private UsersDatabase usersDatabase;
+    final private Connection connection;
+    final private MessageService messageService;
+    final private Topic topic;
     private Session JMSSession;
+
+    @Autowired
+    public ChatWebSocketHandler(UsersDatabase usersDatabase, Connection connection, MessageService messageService, Topic topic) {
+        this.usersDatabase = usersDatabase;
+        this.connection = connection;
+        this.messageService = messageService;
+        this.topic = topic;
+    }
 
 
     @Override
@@ -61,9 +61,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             // Salva o usuario no banco de dados com nome e queue
             usersDatabase.add(username, queue);
 
-            // Envia a lista de usuarios ativos
-            WSSession.sendMessage(new TextMessage("Usuarios ativos: " + usersDatabase.getConnectedUsersAsString()));
-
+            respondWithActiveUsers(WSSession);
         } catch (Exception err) {
             err.printStackTrace();
         }
@@ -127,5 +125,22 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             }
         }
         return null;
+    }
+
+    public void respondWithActiveUsers(WebSocketSession session) {
+        String activeUsers = usersDatabase.getConnectedUsersAsString();
+
+        Message message = new Message(
+                "users",
+                activeUsers,
+                "server",
+                getUsername(session)
+        );
+
+        try {
+            session.sendMessage(new TextMessage(message.toString()));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }
