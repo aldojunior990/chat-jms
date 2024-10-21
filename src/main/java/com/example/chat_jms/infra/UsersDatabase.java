@@ -2,12 +2,11 @@ package com.example.chat_jms.infra;
 
 import jakarta.jms.Queue;
 import org.springframework.stereotype.Repository;
+import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-
+import java.util.Set;
 
 @Repository
 public class UsersDatabase {
@@ -35,13 +34,8 @@ public class UsersDatabase {
         return users.get(user);
     }
 
-    // Novo metodo que retorna a lista de usuários conectados
-    public List<String> getConnectedUsers() {
-        return new ArrayList<>(users.keySet());
+    public String getConnectedUsersAsString() {
+        return String.join(", ", users.keySet());
     }
-
-//    public String getConnectedUsersAsString() {
-//        return String.join(", ", users.keySet());
-//    }
 
 }
