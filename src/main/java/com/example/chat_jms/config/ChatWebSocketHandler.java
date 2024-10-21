@@ -4,9 +4,11 @@ import com.example.chat_jms.domain.Message;
 import com.example.chat_jms.infra.UsersDatabase;
 import com.example.chat_jms.services.MessageService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.Nullable;
 import jakarta.jms.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.lang.NonNull;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
@@ -16,26 +18,46 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Configuration
 public class ChatWebSocketHandler extends TextWebSocketHandler {
 
-    @Autowired
-    private UsersDatabase usersDatabase;
-
-    @Autowired
-    private Connection connection;
-
-    @Autowired
-    private MessageService messageService;
-
-    @Autowired
-    private Topic topic;
-
+    private final UsersDatabase usersDatabase;
+    private final Connection connection;
+    private final MessageService messageService;
+    private final Topic topic;
     private Session JMSSession;
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    // Construtor com injeção de dependência
+    @Autowired
+    public ChatWebSocketHandler(UsersDatabase usersDatabase, Connection connection,
+                                MessageService messageService, Topic topic) {
+        this.usersDatabase = usersDatabase;
+        this.connection = connection;
+        this.messageService = messageService;
+        this.topic = topic;
+    }
+
+//    @Autowired
+//    private UsersDatabase usersDatabase;
+
+//    @Autowired
+//    private Connection connection;
+
+//    @Autowired
+//    private MessageService messageService;
+
+//    @Autowired
+//    private Topic topic;
+
+
 
     @Override
-    public void afterConnectionEstablished(WebSocketSession WSSession) {
+    public void afterConnectionEstablished(@NonNull WebSocketSession WSSession) {
         try {
             String username = getUsername(WSSession);
 
@@ -63,8 +85,20 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             usersDatabase.add(username, queue);
 
             // Envia a lista de usuarios ativos
-            WSSession.sendMessage(new TextMessage("Usuarios ativos: " + usersDatabase.getConnectedUsersAsString()));
+            //WSSession.sendMessage(new TextMessage("Usuarios ativos: " + usersDatabase.getConnectedUsersAsString()));
+            // Cria um objeto com a lista de usuários ativos
 
+            List<String> activeUsers = usersDatabase.getConnectedUsers(); // Supondo que isso retorne uma lista de nomes
+            // Cria um objeto JSON
+            Map<String, Object> response = new HashMap<>();
+            response.put("type", "activeUsers");
+            response.put("users", activeUsers);
+
+            // Serializa o objeto para JSON
+            String jsonResponse = objectMapper.writeValueAsString(response);
+
+            // Envia a lista de usuários ativos como JSON
+            WSSession.sendMessage(new TextMessage(jsonResponse));
         } catch (Exception err) {
             err.printStackTrace();
         }

@@ -1,53 +1,114 @@
-var stompClient = null;
+// Seleciona elementos do DOM
+const connectScreen = document.getElementById('connect-screen');
+const chatScreen = document.getElementById('chat-screen');
+const usernameInput = document.getElementById('username');
+const connectBtn = document.getElementById('connect-btn');
+const userList = document.getElementById('user-list');
+const chatRoom = document.getElementById('chat-room');
+const messageInput = document.getElementById('message-input');
+const sendBtn = document.getElementById('send-btn');
+const messagesDiv = document.getElementById('messages');
+const publicChatBtn = document.getElementById('public-chat-btn');
+const userDisplay = document.getElementById('user');
 
-function connect() {
-    var socket = new SockJS('/chat-websocket');
-    stompClient = Stomp.over(socket);
-    stompClient.connect({}, function (frame) {
-        console.log('Connected: ' + frame);
-        stompClient.subscribe('/topic/broadcast', function (message) {
-            showBroadcastMessage(JSON.parse(message.body).input);
-        });
+let websocket;
+let currentUser;
 
-        // // Assinando a fila privada para mensagens recebidas
-        // stompClient.subscribe("/user/queue/private-messages", function (message) {
-        //     showPrivateMessage(JSON.parse(message.body));
-        // });
+// Conecta ao WebSocket com o nome de usuário
+connectBtn.addEventListener('click', () => {
+    const username = usernameInput.value.trim();
+    if (username) {
+        currentUser = username;
+        connectToWebSocket(username);
+    }
+});
+
+function connectToWebSocket(username) {
+    websocket = new WebSocket(`ws://localhost:8080/chat?username=${username}`);
+
+    websocket.onopen = function() {
+        console.log("Conectado ao WebSocket como " + username);
+        userDisplay.innerText = username;
+        connectScreen.style.display = 'none';
+        chatScreen.style.display = 'block';
+    };
+
+    websocket.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+        if (data.type === 'users') {
+            // Atualiza a lista de usuários conectados
+            updateUserList(data.users);
+        } else {
+            // Exibe a mensagem recebida
+            displayMessage(data.sender, data.content);
+        }
+    };
+
+    websocket.onclose = function() {
+        console.log("Desconectado do WebSocket");
+    };
+}
+
+// Atualiza a lista de usuários conectados
+function updateUserList(users) {
+    userList.innerHTML = '';
+    users.forEach(user => {
+        if (user !== currentUser) {
+            const userElement = document.createElement('li');
+            userElement.innerText = user;
+            userElement.addEventListener('click', () => openPrivateChat(user));
+            userList.appendChild(userElement);
+        }
     });
 }
 
-function sendBroadcastMessage() {
-    var user = document.getElementById('username').value;
-    var messageContent = document.getElementById('broadcastMessage').value;
+// Abre o chat privado com um usuário
+function openPrivateChat(user) {
+    chatRoom.style.display = 'block';
+    document.getElementById('chat-room-title').innerText = `Chat com ${user}`;
 
-    var chatInput = {
-        user: user,
-        message: messageContent
+    // Enviar uma mensagem privada
+    sendBtn.onclick = function() {
+        const messageContent = messageInput.value.trim();
+        if (messageContent) {
+            const message = {
+                type: 'queue',
+                content: messageContent,
+                sender: currentUser,
+                receiver: user
+            };
+            websocket.send(JSON.stringify(message));
+            messageInput.value = '';
+            displayMessage(currentUser, messageContent);
+        }
     };
-
-    stompClient.send("/app/sendBroadcastMessage", {}, JSON.stringify(chatInput));
 }
 
-function showBroadcastMessage(message) {
-    var messageArea = document.getElementById('broadcastMessageArea');
-    var messageElement = document.createElement('li');
-    messageElement.textContent = message;
-    messageArea.appendChild(messageElement);
+// Abre o chat público
+publicChatBtn.addEventListener('click', () => {
+    chatRoom.style.display = 'block';
+    document.getElementById('chat-room-title').innerText = 'Chat Público';
+
+    sendBtn.onclick = function() {
+        const messageContent = messageInput.value.trim();
+        if (messageContent) {
+            const message = {
+                type: 'topic',
+                content: messageContent,
+                sender: currentUser,
+                receiver: null
+            };
+            websocket.send(JSON.stringify(message));
+            messageInput.value = '';
+            displayMessage(currentUser, messageContent);
+        }
+    };
+});
+
+// Exibe a mensagem recebida ou enviada
+function displayMessage(sender, content) {
+    const messageElement = document.createElement('div');
+    messageElement.innerText = `${sender}: ${content}`;
+    messagesDiv.appendChild(messageElement);
+    messagesDiv.scrollTop = messagesDiv.scrollHeight; // Rolagem automática para a última mensagem
 }
-
-// function sendPrivateMessage() {
-//     var toUser = document.getElementById('privateUser').value;
-//     var messageContent = document.getElementById('privateMessage').value;
-//
-//     stompClient.send("/app/sendPrivateMessage/" + toUser, {}, JSON.stringify(messageContent));
-// }
-//
-// function showPrivateMessage(message) {
-//     var messageArea = document.getElementById('privateMessageArea');
-//     var messageElement = document.createElement('li');
-//     messageElement.textContent = message;
-//     messageArea.appendChild(messageElement);
-// }
-
-// Chame a função connect() ao carregar a página
-window.onload = connect;

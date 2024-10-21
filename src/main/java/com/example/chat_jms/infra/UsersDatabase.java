@@ -1,14 +1,13 @@
 package com.example.chat_jms.infra;
 
 import jakarta.jms.Queue;
-import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Repository;
-import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.stream.Collectors;
+
 
 @Repository
 public class UsersDatabase {
@@ -36,8 +35,13 @@ public class UsersDatabase {
         return users.get(user);
     }
 
-    public String getConnectedUsersAsString() {
-        return String.join(", ", users.keySet());
+    // Novo metodo que retorna a lista de usuários conectados
+    public List<String> getConnectedUsers() {
+        return new ArrayList<>(users.keySet());
     }
+
+//    public String getConnectedUsersAsString() {
+//        return String.join(", ", users.keySet());
+//    }
 
 }
