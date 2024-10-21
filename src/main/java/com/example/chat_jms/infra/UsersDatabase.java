@@ -2,11 +2,8 @@ package com.example.chat_jms.infra;
 
 import jakarta.jms.Queue;
 import org.springframework.stereotype.Repository;
-import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.Map;
-import java.util.Set;
 
 @Repository
 public class UsersDatabase {

@@ -44,6 +44,8 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                 throw new IllegalArgumentException("Username não pode ser vazio");
             }
 
+            connection.start();
+
             // Inicia a conexãp
             JMSSession = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
 
@@ -62,7 +64,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             usersDatabase.add(username, queue);
 
             // Envia a lista de usuarios ativos
-            WSSession.sendMessage(new TextMessage("Usuarios ativos: " + usersDatabase.getConnectedUsersAsString()));
+            respondWithActiveUsers(WSSession);
 
         } catch (Exception err) {
             err.printStackTrace();
@@ -80,7 +82,6 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
 
             // Verifica se a mensagem é do tipo topic ou queue
             if ("topic".equalsIgnoreCase(payload.type())) {
-
                 // Envia para o topico
                 messageService.sendTopicMessage(JMSSession, topic, message.getPayload());
 
@@ -127,5 +128,22 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             }
         }
         return null;
+    }
+
+    public void respondWithActiveUsers(WebSocketSession session) {
+        String activeUsers = usersDatabase.getConnectedUsersAsString();
+
+        Message message = new Message(
+                "users",
+                activeUsers,
+                "server",
+                getUsername(session)
+        );
+
+        try {
+            session.sendMessage(new TextMessage(message.toString()));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }

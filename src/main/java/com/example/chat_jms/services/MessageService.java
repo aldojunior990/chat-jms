@@ -10,10 +10,8 @@ public class MessageService {
 
     public void sendPrivateMessage(Session JMSsession, Queue queue, String message) {
         try {
-
             // Cria o produtor da mensagem
             MessageProducer messageProducer = JMSsession.createProducer(queue);
-
 
             TextMessage textMessage = JMSsession.createTextMessage(message);
 
