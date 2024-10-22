@@ -18,6 +18,7 @@ public class MessageService {
             // Envia a mensagem
             messageProducer.send(textMessage);
 
+            //Fecha a conexão
             messageProducer.close();
         } catch (JMSException err) {
             err.printStackTrace();
