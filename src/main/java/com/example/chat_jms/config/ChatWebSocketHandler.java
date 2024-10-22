@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.jms.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.lang.NonNull;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
@@ -34,9 +35,8 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         this.topic = topic;
     }
 
-
     @Override
-    public void afterConnectionEstablished(WebSocketSession WSSession) {
+    public void afterConnectionEstablished(@NonNull WebSocketSession WSSession) {
         try {
             String username = getUsername(WSSession);
 
@@ -44,7 +44,9 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                 throw new IllegalArgumentException("Username não pode ser vazio");
             }
 
-            // Inicia a conexãp
+            connection.start();
+
+            // Inicia a conexão
             JMSSession = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
 
             // Cria uma fila para o usuario
@@ -69,7 +71,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     }
 
     @Override
-    protected void handleTextMessage(WebSocketSession session, TextMessage message) {
+    protected void handleTextMessage(@NonNull WebSocketSession session, TextMessage message) {
         try {
 
             // Mapeia a resposta para um padrão
@@ -103,7 +105,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     }
 
     @Override
-    public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
+    public void afterConnectionClosed(@NonNull WebSocketSession session, @NonNull CloseStatus status) {
         try {
             usersDatabase.remove(getUsername(session));
             JMSSession.close();

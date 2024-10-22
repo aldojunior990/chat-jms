@@ -43,7 +43,7 @@ public class MessageService {
     public void setConsumerListener(MessageConsumer consumer, WebSocketSession WSSession) {
         try {
             // Seta o usuario como consumidor do topico/fila
-            // Se ouver alguma nova mensagem ele é notificado
+            // Se houver alguma nova mensagem ele é notificado
             consumer.setMessageListener(message -> {
                 try {
                     if (message instanceof jakarta.jms.TextMessage textMessage) {
