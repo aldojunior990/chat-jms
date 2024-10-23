@@ -131,11 +131,11 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     }
 
     public void respondWithActiveUsers(WebSocketSession session) {
-        String activeUsers = usersDatabase.getConnectedUsersAsString();
+        String activeUsers = usersDatabase.getConnectedUsersAsString(getUsername(session));
 
         Message message = new Message(
                 "users",
-                activeUsers,
+                "topic," + activeUsers,
                 "server",
                 getUsername(session)
         );

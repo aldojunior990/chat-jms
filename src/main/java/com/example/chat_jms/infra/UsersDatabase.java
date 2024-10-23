@@ -4,6 +4,7 @@ import jakarta.jms.Queue;
 import org.springframework.stereotype.Repository;
 
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Repository
 public class UsersDatabase {
@@ -31,8 +32,9 @@ public class UsersDatabase {
         return users.get(user);
     }
 
-    public String getConnectedUsersAsString() {
-        return String.join(", ", users.keySet());
+    public String getConnectedUsersAsString(String currentUser) {
+        return users.keySet().stream()
+                .filter(user -> !user.equals(currentUser)) // Exclui o usuário atual
+                .collect(Collectors.joining(", "));
     }
-
 }
