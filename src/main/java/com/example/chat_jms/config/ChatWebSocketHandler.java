@@ -1,8 +1,12 @@
 package com.example.chat_jms.config;
 
 import com.example.chat_jms.domain.Message;
+import com.example.chat_jms.infra.Users;
 import com.example.chat_jms.infra.UsersDatabase;
 import com.example.chat_jms.services.MessageService;
+import com.example.chat_jms.dto.*;
+
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.jms.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,7 +21,8 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
-
+import java.util.List;
+import java.util.UUID;
 @Configuration
 public class ChatWebSocketHandler extends TextWebSocketHandler {
 
@@ -26,6 +31,8 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     final private MessageService messageService;
     final private Topic topic;
     private Session JMSSession;
+
+    private Users user = null;
 
     @Autowired
     public ChatWebSocketHandler(UsersDatabase usersDatabase, Connection connection, MessageService messageService, Topic topic) {
@@ -44,6 +51,8 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                 throw new IllegalArgumentException("Username não pode ser vazio");
             }
 
+            user = new Users(UUID.randomUUID(), username); // cria um usuário
+
             connection.start();
 
             // Inicia a conexão
@@ -61,9 +70,12 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             messageService.setConsumerListener(topicConsumer, WSSession);
 
             // Salva o usuario no banco de dados com nome e queue
-            usersDatabase.add(username, queue);
+            usersDatabase.add(user, queue);
 
             respondWithActiveUsers(WSSession);
+
+
+
         } catch (Exception err) {
             err.printStackTrace();
         }
@@ -75,29 +87,73 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         try {
 
             // Mapeia a resposta para um padrão
-            ObjectMapper objectMapper = new ObjectMapper();
-            Message payload = objectMapper.readValue(message.getPayload(), Message.class);
+            // ObjectMapper objectMapper = new ObjectMapper();
+            // Message payload = objectMapper.readValue(message.getPayload(), Message.class);
 
-            // Verifica se a mensagem é do tipo topic ou queue
-            if ("topic".equalsIgnoreCase(payload.type())) {
+            ObjectMapper objectMapper = new ObjectMapper();
+            JsonNode payloadNode = objectMapper.readTree(message.getPayload());
+            // Verifica qual o tipo de DTO
+            String type = payloadNode.get("type").asText();
+
+
+            // Verifica se a mensagem é do tipo TopicDTO ou queue
+            if ("topic".equalsIgnoreCase(type)) {
+
+                // Mapeia para TopicDTO
+                TopicDTO topicMessage = objectMapper.treeToValue(payloadNode, TopicDTO.class);
 
                 // Envia para o topico
-                messageService.sendTopicMessage(JMSSession, topic, message.getPayload());
+                messageService.sendTopicMessage(JMSSession, topic, topicMessage.content());
 
-
-            } else if ("queue".equalsIgnoreCase(payload.type())) {
+            } else if ("queue".equalsIgnoreCase(type)) {
 
                 // Recupera o nome do destinatário
-                String receiverName = payload.receiver();
+                // String receiverName = payload.receiver();
 
                 // Recupera a queue do destinatário
-                Queue receiverQueue = usersDatabase.getQueueByUser(receiverName);
+                // Queue receiverQueue = usersDatabase.getQueueByUser(user);
 
                 // Envia para a queue
-                messageService.sendPrivateMessage(JMSSession, receiverQueue, message.getPayload());
+                // messageService.sendPrivateMessage(JMSSession, receiverQueue, message.getPayload());
+
+                // Mapeia para QueueDTO
+                QueueDTO queueMessage = objectMapper.treeToValue(payloadNode, QueueDTO.class);
+
+                // Recupera o ID do destinatário
+                UUID receiverId = queueMessage.receiverId();
+
+                // Recupera o usuário destinatário baseado no receiverId
+                Users receiver = usersDatabase.getConnectedUsers().stream()
+                        .filter(user -> user.id().equals(receiverId))
+                        .findFirst()
+                        .orElseThrow(() -> new IllegalArgumentException("Destinatário não encontrado"));
+
+                // Recupera a fila do destinatário
+                Queue receiverQueue = usersDatabase.getQueueByUser(receiver);
+
+                // Envia a mensagem privada para a queue
+                messageService.sendPrivateMessage(JMSSession, receiverQueue, queueMessage.content());
+
+            } else if ("users".equalsIgnoreCase(type)) {
+
+                // Pega a lista de usuários conectados
+                List<Users> connectedUsers = usersDatabase.getConnectedUsers();
+
+                // Converte a lista de Users para UsersDTO
+                List<UsersDTO> usersDTOList = connectedUsers.stream()
+                        .map(user -> new UsersDTO("users", user.id(), user.name()))
+                        .toList();
+
+                // Converte a lista de UserResponseDTO para JSON
+                String usersJson = objectMapper.writeValueAsString(usersDTOList);
+
+                // Envia a lista de UserResponseDTO para o cliente
+                session.sendMessage(new TextMessage(usersJson));
+
 
             } else {
                 session.sendMessage(new TextMessage("Tipo de mensagem inválido."));
+
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -107,7 +163,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionClosed(@NonNull WebSocketSession session, @NonNull CloseStatus status) {
         try {
-            usersDatabase.remove(getUsername(session));
+            usersDatabase.remove(user);
             JMSSession.close();
         } catch (Exception err) {
             err.printStackTrace();

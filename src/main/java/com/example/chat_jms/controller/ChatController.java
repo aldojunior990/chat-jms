@@ -11,7 +11,7 @@ import org.springframework.stereotype.Controller;
 public class ChatController {
 
     @MessageMapping("/sendBroadcastMessage")
-    @SendTo("/topic/broadcast")
+    @SendTo("/TopicDTO/broadcast")
     public ChatOutput sendBroadcastMessage(ChatInput input) {
         return new ChatOutput(input.user() + ": " + input.message()); // Envia a mensagem para todos os inscritos no tópico
     }
