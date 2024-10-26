@@ -18,6 +18,7 @@ public class MessageService {
             // Envia a mensagem
             messageProducer.send(textMessage);
 
+            //Fecha a conexão
             messageProducer.close();
         } catch (JMSException err) {
             err.printStackTrace();
@@ -42,13 +43,15 @@ public class MessageService {
 
     public void setConsumerListener(MessageConsumer consumer, WebSocketSession WSSession) {
         try {
-            // Seta o usuario como consumidor do topico/fila
-            // Se ouver alguma nova mensagem ele é notificado
             consumer.setMessageListener(message -> {
                 try {
                     if (message instanceof jakarta.jms.TextMessage textMessage) {
                         String text = textMessage.getText();
-                        WSSession.sendMessage(new org.springframework.web.socket.TextMessage(text));
+                        if (WSSession.isOpen()) {
+                            WSSession.sendMessage(new org.springframework.web.socket.TextMessage(text));
+                        } else {
+                            consumer.close();
+                        }
                     }
                 } catch (Exception e) {
                     e.printStackTrace();

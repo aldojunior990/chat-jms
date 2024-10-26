@@ -1,12 +1,20 @@
 package com.example.chat_jms.config;
 
-import com.example.chat_jms.domain.Message;
-import com.example.chat_jms.infra.UsersDatabase;
+import com.example.chat_jms.domain.ConnectedUser;
+import com.example.chat_jms.domain.PrivateChat;
+import com.example.chat_jms.infra.UsersRepository;
 import com.example.chat_jms.services.MessageService;
+import com.example.chat_jms.dto.*;
+
+import com.example.chat_jms.usecases.SendUserDetails;
+import com.example.chat_jms.usecases.SendUsersList;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.jms.*;
+import jakarta.jms.Queue;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.lang.NonNull;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
@@ -16,89 +24,122 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.*;
 
 @Configuration
 public class ChatWebSocketHandler extends TextWebSocketHandler {
 
-    @Autowired
-    private UsersDatabase usersDatabase;
-
-    @Autowired
-    private Connection connection;
-
-    @Autowired
-    private MessageService messageService;
-
-    @Autowired
-    private Topic topic;
-
+    final private UsersRepository usersRepository;
+    final private Connection connection;
+    final private MessageService messageService;
+    final private Topic globalTopic;
     private Session JMSSession;
+    private final SendUserDetails sendUserDetails;
 
+    private final SendUsersList sendUsersList;
+
+    @Autowired
+    public ChatWebSocketHandler(UsersRepository usersRepository, Connection connection, MessageService messageService, Topic globalTopic, SendUserDetails sendUserDetails, SendUsersList sendUsersList) {
+        this.usersRepository = usersRepository;
+        this.connection = connection;
+        this.messageService = messageService;
+        this.globalTopic = globalTopic;
+        this.sendUserDetails = sendUserDetails;
+        this.sendUsersList = sendUsersList;
+    }
 
     @Override
-    public void afterConnectionEstablished(WebSocketSession WSSession) {
+    public void afterConnectionEstablished(@NonNull WebSocketSession websocketSession) {
         try {
-            String username = getUsername(WSSession);
-
+            String username = getUsername(websocketSession);
             if (username == null || username.trim().isEmpty()) {
+                websocketSession.close();
                 throw new IllegalArgumentException("Username não pode ser vazio");
             }
 
             connection.start();
 
-            // Inicia a conexãp
+            // Inicia a sessão com JMS
             JMSSession = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+            UUID userID = UUID.randomUUID();
 
-            // Cria uma fila para o usuario
-            Queue queue = JMSSession.createQueue(username);
+            // Cria a fila do usuario
+            Queue queue = JMSSession.createQueue(userID.toString());
 
-            // Cria os consumidores do tópico global e individual
+            ConnectedUser connectedUser = new ConnectedUser(
+                    userID,
+                    username,
+                    queue,
+                    websocketSession);
+
+            // Salva o usuario no banco de dados
+            usersRepository.add(connectedUser);
+
+            // Seta o usuario como consumidor do topico
+            MessageConsumer topicConsumer = JMSSession.createConsumer(globalTopic);
             MessageConsumer privateConsumer = JMSSession.createConsumer(queue);
-            MessageConsumer topicConsumer = JMSSession.createConsumer(topic);
+            messageService.setConsumerListener(topicConsumer, websocketSession);
+            messageService.setConsumerListener(privateConsumer, websocketSession);
 
-            // Seta o usuario como consumidor do topico e da queue individual
-            messageService.setConsumerListener(privateConsumer, WSSession);
-            messageService.setConsumerListener(topicConsumer, WSSession);
+            // Envia para o usuario seu ID e Username para sincronização
+            sendUserDetails.execute(websocketSession, connectedUser);
 
-            // Salva o usuario no banco de dados com nome e queue
-            usersDatabase.add(username, queue);
-
-            // Envia a lista de usuarios ativos
-            respondWithActiveUsers(WSSession);
-
+            // Notifica todos os usuarios sobre a nova conexão
+            sendUsersList.execute();
         } catch (Exception err) {
             err.printStackTrace();
         }
-
     }
 
     @Override
-    protected void handleTextMessage(WebSocketSession session, TextMessage message) {
+    protected void handleTextMessage(@NonNull WebSocketSession session, TextMessage message) {
         try {
 
-            // Mapeia a resposta para um padrão
             ObjectMapper objectMapper = new ObjectMapper();
-            Message payload = objectMapper.readValue(message.getPayload(), Message.class);
+            JsonNode payloadNode = objectMapper.readTree(message.getPayload());
 
-            // Verifica se a mensagem é do tipo topic ou queue
-            if ("topic".equalsIgnoreCase(payload.type())) {
-                // Envia para o topico
-                messageService.sendTopicMessage(JMSSession, topic, message.getPayload());
+            // Verifica qual o tipo de mensagem recebida
+            String type = payloadNode.get("type").asText();
 
+            // Verifica se a mensagem é do tipo TopicDTO ou queue
+            if ("topic".equalsIgnoreCase(type)) {
 
-            } else if ("queue".equalsIgnoreCase(payload.type())) {
+                // Mapeia para TopicDTO
+                TopicDTO topicMessage = objectMapper.treeToValue(payloadNode, TopicDTO.class);
 
-                // Recupera o nome do destinatário
-                String receiverName = payload.receiver();
+                // Envia a mensagem para o topico global
+                messageService.sendTopicMessage(JMSSession, globalTopic, topicMessage.toString());
+            } else if ("queue".equalsIgnoreCase(type)) {
+                // Mapeia para QueueDTO
+                QueueDTO queueMessage = objectMapper.treeToValue(payloadNode, QueueDTO.class);
 
-                // Recupera a queue do destinatário
-                Queue receiverQueue = usersDatabase.getQueueByUser(receiverName);
+                // Recupera o remetente e destinatário
+                ConnectedUser sender = usersRepository.getConnectedUserByID(queueMessage.sender());
+                ConnectedUser receiver = usersRepository.getConnectedUserByID(queueMessage.receiver());
 
-                // Envia para a queue
-                messageService.sendPrivateMessage(JMSSession, receiverQueue, message.getPayload());
+                String combinedID = (sender.id().compareTo(receiver.id()) < 0)
+                        ? sender.id() + "-" + receiver.id()
+                        : receiver.id() + "-" + sender.id();
 
-            } else {
-                session.sendMessage(new TextMessage("Tipo de mensagem inválido."));
+                // Verifica se existe um chat aberto com esses dois usuarios
+                PrivateChat privateChat = usersRepository.getPrivateChatById(combinedID);
+
+                if (privateChat != null) {
+                    for (ConnectedUser participant : privateChat.participants()) {
+                        messageService.sendPrivateMessage(JMSSession, participant.queue(), queueMessage.toString());
+                    }
+
+                } else {
+                    // Adiciona o chat Privado a lista
+                    HashSet<ConnectedUser> participants = new HashSet<>();
+                    participants.add(sender);
+                    participants.add(receiver);
+                    usersRepository.updateOpenChats(new PrivateChat(combinedID, participants));
+                    // Envia a mensagem
+                    for (ConnectedUser participant : participants) {
+                        messageService.sendPrivateMessage(JMSSession, participant.queue(), queueMessage.toString());
+                    }
+                }
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -106,10 +147,10 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     }
 
     @Override
-    public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
+    public void afterConnectionClosed(@NonNull WebSocketSession session, @NonNull CloseStatus status) {
         try {
-            usersDatabase.remove(getUsername(session));
-            JMSSession.close();
+            usersRepository.removeBySession(session);
+            sendUsersList.execute();
         } catch (Exception err) {
             err.printStackTrace();
         }
@@ -130,20 +171,4 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         return null;
     }
 
-    public void respondWithActiveUsers(WebSocketSession session) {
-        String activeUsers = usersDatabase.getConnectedUsersAsString(getUsername(session));
-
-        Message message = new Message(
-                "users",
-                "topic," + activeUsers,
-                "server",
-                getUsername(session)
-        );
-
-        try {
-            session.sendMessage(new TextMessage(message.toString()));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
 }
