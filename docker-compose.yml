@@ -33,4 +33,3 @@ volumes:
 networks:
   activemq-network:
     driver: bridge
-
