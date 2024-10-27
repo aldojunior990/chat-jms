@@ -30,7 +30,8 @@ import java.util.*;
 public class ChatWebSocketHandler extends TextWebSocketHandler {
 
     final private UsersRepository usersRepository;
-    final private Connection connection;
+    private Connection connection;
+    final private ConnectionFactory connectionFactory;
     final private MessageService messageService;
     final private Topic globalTopic;
     private Session JMSSession;
@@ -45,17 +46,14 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         this.globalTopic = globalTopic;
         this.sendUserDetails = sendUserDetails;
         this.sendUsersList = sendUsersList;
-
-        try {
-            this.connection = connectionFactory.createConnection();
-        } catch (JMSException e) {
-            throw new RuntimeException(e);
-        }
+        this.connectionFactory = connectionFactory;
     }
 
     @Override
     public void afterConnectionEstablished(@NonNull WebSocketSession websocketSession) {
         try {
+            if (this.connection == null) this.connection = connectionFactory.createConnection();
+
             String username = getUsername(websocketSession);
             if (username == null || username.trim().isEmpty()) {
                 websocketSession.close();
