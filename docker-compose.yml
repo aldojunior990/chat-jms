@@ -13,6 +13,8 @@ services:
       - SPRING_ACTIVEMQ_PASSWORD=admin
     depends_on:
       - activemq
+    networks:
+      - activemq-network
 
   activemq:
     image: rmohr/activemq:latest  # Use a imagem recomendada
