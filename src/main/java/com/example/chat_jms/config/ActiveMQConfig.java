@@ -22,14 +22,8 @@ public class ActiveMQConfig {
     private String password;
 
     @Bean
-    public Connection connectionFactory() {
-        try {
-            ConnectionFactory connectionFactory = new ActiveMQConnectionFactory(user, password, url);
-            return connectionFactory.createConnection();
-        } catch (Exception err) {
-            err.printStackTrace();
-            return null;
-        }
+    public ConnectionFactory connectionFactory() {
+        return new ActiveMQConnectionFactory(user, password, url);
     }
 
     @Bean

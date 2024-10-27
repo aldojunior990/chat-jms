@@ -35,17 +35,22 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     final private Topic globalTopic;
     private Session JMSSession;
     private final SendUserDetails sendUserDetails;
-
     private final SendUsersList sendUsersList;
 
+
     @Autowired
-    public ChatWebSocketHandler(UsersRepository usersRepository, Connection connection, MessageService messageService, Topic globalTopic, SendUserDetails sendUserDetails, SendUsersList sendUsersList) {
+    public ChatWebSocketHandler(UsersRepository usersRepository, ConnectionFactory connectionFactory, MessageService messageService, Topic globalTopic, SendUserDetails sendUserDetails, SendUsersList sendUsersList) {
         this.usersRepository = usersRepository;
-        this.connection = connection;
         this.messageService = messageService;
         this.globalTopic = globalTopic;
         this.sendUserDetails = sendUserDetails;
         this.sendUsersList = sendUsersList;
+
+        try {
+            this.connection = connectionFactory.createConnection();
+        } catch (JMSException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
