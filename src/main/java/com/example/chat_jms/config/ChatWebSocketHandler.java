@@ -50,17 +50,19 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     }
 
     @Override
-    public void afterConnectionEstablished(@NonNull WebSocketSession websocketSession) {
+    public void afterConnectionEstablished(@NonNull WebSocketSession websocketSession) throws IOException {
         try {
-            if (this.connection == null) this.connection = connectionFactory.createConnection();
+
+            this.connection = connectionFactory.createConnection();
+            this.connection.start();
+            System.out.println("Conexão estabelecida com sucesso!");
+
 
             String username = getUsername(websocketSession);
             if (username == null || username.trim().isEmpty()) {
                 websocketSession.close();
                 throw new IllegalArgumentException("Username não pode ser vazio");
             }
-
-            connection.start();
 
             // Inicia a sessão com JMS
             JMSSession = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
@@ -91,6 +93,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             sendUsersList.execute();
         } catch (Exception err) {
             err.printStackTrace();
+            websocketSession.close();
         }
     }
 

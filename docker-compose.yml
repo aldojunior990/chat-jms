@@ -8,6 +8,6 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - SPRING_ACTIVEMQ_BROKER_URL=tcp//activemq-latest.onrender.com:61616
+      - SPRING_ACTIVEMQ_BROKER_URL=tcp://activemq-latest.onrender.com:61616
       - SPRING_ACTIVEMQ_USER=admin
       - SPRING_ACTIVEMQ_PASSWORD=admin
